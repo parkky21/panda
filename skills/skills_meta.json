@@ -1,0 +1,22 @@
+{
+  "print_ping": {
+    "file": "print_ping.py",
+    "description": "Prints a ping message for the user. Usage: print_ping <name>. This is designed to be used with schedule_task as a one-shot notification.",
+    "type": "python"
+  },
+  "delayed_ping": {
+    "file": "delayed_ping.sh",
+    "description": "Delays for specified seconds, then prints a ping. One-shot (non-recurring). Usage: delayed_ping <name> <seconds>",
+    "type": "bash"
+  },
+  "send_email": {
+    "file": "send_email.py",
+    "description": "Sends an email via SMTP. Automatically prepends the Panda AI Assistant signature. Usage: send_email <to_email> <subject> <body>",
+    "type": "python"
+  },
+  "check_emails": {
+    "file": "check_emails.py",
+    "description": "Checks the IMAP server inbox for new unread email messages or replies, prints details, and marks them as read. Usage: check_emails",
+    "type": "python"
+  }
+}
