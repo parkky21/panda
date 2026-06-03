@@ -29,11 +29,13 @@ jobs:
             git fetch --tags
             git checkout tags/${{ github.ref_name }}
             
-            # Install/update dependencies using uv
-            # (Assumes uv is installed on the EC2 instance)
-            uv sync --frozen
+            # Ensure the host memory directory exists (so we can mount it as a volume)
+            mkdir -p memory
             
-            # Restart your PM2 process or systemd service (if configured)
-            # Example: pm2 restart panda
-            # Or: sudo systemctl restart panda
+            # Build the Docker image
+            docker build -t panda-agent .
+            
             echo "Deployment of ${{ github.ref_name }} completed successfully!"
+            echo "To start chatting with Panda on EC2, run:"
+            echo "docker run -it --rm --name panda-chat -v /home/${{ secrets.EC2_USER }}/panda/memory:/app/memory --env-file .env panda-agent"
+
