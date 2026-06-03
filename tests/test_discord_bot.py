@@ -300,3 +300,44 @@ async def test_cron_loop_email_reply_unfiltered_auto_stop(mock_notify):
     mock_orchestrator.scheduler.unschedule_task.assert_called_once_with("unfiltered_task")
     mock_notify.assert_not_called()
 
+
+@pytest.mark.anyio
+async def test_handle_conversation_empty():
+    mock_message = MagicMock()
+    mock_message.reply = AsyncMock()
+    mock_message.attachments = []
+    
+    await discord_bot.handle_conversation(mock_message, "")
+    
+    mock_message.reply.assert_called_once_with("🐼 It looks like you sent an empty message! How can I help you? 🐼")
+
+
+@pytest.mark.anyio
+async def test_handle_conversation_voice():
+    mock_message = MagicMock()
+    mock_message.reply = AsyncMock()
+    
+    mock_attachment = MagicMock()
+    mock_attachment.content_type = "audio/ogg"
+    mock_attachment.filename = "voice.ogg"
+    mock_message.attachments = [mock_attachment]
+    
+    await discord_bot.handle_conversation(mock_message, "")
+    
+    mock_message.reply.assert_called_once_with("🐼 I can see you sent a voice message, but I can't listen to audio yet! Please type your message. 🎙️")
+
+
+@pytest.mark.anyio
+async def test_handle_conversation_attachment():
+    mock_message = MagicMock()
+    mock_message.reply = AsyncMock()
+    
+    mock_attachment = MagicMock()
+    mock_attachment.content_type = "image/png"
+    mock_attachment.filename = "screenshot.png"
+    mock_message.attachments = [mock_attachment]
+    
+    await discord_bot.handle_conversation(mock_message, "   ")
+    
+    mock_message.reply.assert_called_once_with("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
+
