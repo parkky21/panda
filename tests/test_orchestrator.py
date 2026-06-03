@@ -187,3 +187,71 @@ def test_reflect_and_improve(temp_memory_dir, temp_skills_dir, mock_boto):
     memory_content = orchestrator.memory_manager.read_memory()
     assert "SESSION REFLECTION" in memory_content
     assert "Lesson 1" in memory_content
+
+
+def test_context_compression_with_tool_results(temp_memory_dir, temp_skills_dir, mock_boto):
+    mock_client = MagicMock()
+    mock_boto.return_value = mock_client
+    
+    mock_client.converse.side_effect = [
+        {
+            "stopReason": "end_turn",
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "- Summary of conversation"}]
+                }
+            }
+        },
+        {
+            "stopReason": "end_turn",
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Pushed memory!"}]
+                }
+            }
+        }
+    ]
+    
+    orchestrator = PandaOrchestrator(temp_memory_dir, temp_skills_dir)
+    
+    # Build 14 messages where index 8 is a toolResult, and index 10 is a clean user message
+    history = []
+    # 0, 1
+    history.append({"role": "user", "content": [{"text": "Msg 0"}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 0"}]})
+    # 2, 3
+    history.append({"role": "user", "content": [{"text": "Msg 1"}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 1"}]})
+    # 4, 5
+    history.append({"role": "user", "content": [{"text": "Msg 2"}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 2"}]})
+    # 6, 7 (assistant makes tool call)
+    history.append({"role": "user", "content": [{"text": "Msg 3"}]})
+    history.append({"role": "assistant", "content": [{"toolUse": {"toolUseId": "1", "name": "read_user", "input": {}}}]})
+    # 8, 9 (user replies with toolResult, then assistant responds)
+    history.append({"role": "user", "content": [{"toolResult": {"toolUseId": "1", "status": "success", "content": [{"text": "result"}]}}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 3"}]})
+    # 10, 11
+    history.append({"role": "user", "content": [{"text": "Msg 4"}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 4"}]})
+    # 12, 13
+    history.append({"role": "user", "content": [{"text": "Msg 5"}]})
+    history.append({"role": "assistant", "content": [{"text": "Reply 5"}]})
+    
+    assert len(history) == 14
+    
+    # Trigger chat which will compress
+    res = orchestrator.chat(history)
+    assert res["content"][0]["text"] == "Pushed memory!"
+    
+    # Since index 8 was a toolResult, the code should have skipped it and split at index 10
+    # Meaning history should have had messages 0-9 compressed and pruned.
+    # The remaining messages starting at index 10 (Msg 4) should remain, plus the new reply.
+    # Total remaining messages in history: Msg 4 (10), Reply 4 (11), Msg 5 (12), Reply 5 (13) -> 4 messages,
+    # plus the new assistant reply appended by orchestrator.chat, making 5 messages total.
+    assert len(history) == 5
+    assert history[0]["role"] == "user"
+    assert history[0]["content"][0]["text"] == "Msg 4"
+

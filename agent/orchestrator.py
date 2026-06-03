@@ -104,11 +104,31 @@ Panda, you have compressed the older part of this chat. Here is the summary of w
 
     def _compress_history(self, messages_history: list):
         """
-        Compresses the oldest 8 messages into a running conversation summary to save tokens.
+        Compresses the oldest messages into a running conversation summary to save tokens.
+        Ensures we split at a clean user message boundary to avoid Bedrock converse API validation errors.
         """
-        logger.info("Compressing conversation history...")
+        # Find a safe split index (role: user, and content has no toolResult)
+        split_idx = 8
+        for idx in range(8, len(messages_history)):
+            msg = messages_history[idx]
+            if msg.get("role") == "user":
+                content = msg.get("content", [])
+                if content and not any("toolResult" in block for block in content):
+                    split_idx = idx
+                    break
+        else:
+            # Fallback search backwards if no safe index found at or after 8
+            for idx in range(7, -1, -1):
+                msg = messages_history[idx]
+                if msg.get("role") == "user":
+                    content = msg.get("content", [])
+                    if content and not any("toolResult" in block for block in content):
+                        split_idx = idx
+                        break
+
+        logger.info(f"Compressing conversation history up to index {split_idx}...")
         texts = []
-        for msg in messages_history[:8]:
+        for msg in messages_history[:split_idx]:
             role = msg.get("role")
             content_blocks = msg.get("content", [])
             for block in content_blocks:
@@ -162,14 +182,10 @@ Panda, you have compressed the older part of this chat. Here is the summary of w
                 self.conversation_summary = new_summary
                 
             # Remove the compressed messages from the history (in-place modification)
-            # We must ensure the remaining history starts with a user message (role: user)
-            # because Bedrock Converse API enforces that history alternates user/assistant starting with user.
-            messages_history[:8] = []
+            messages_history[:split_idx] = []
             
-            # Find the first user message. If the first message is assistant or tool results, discard until we get a user message.
-            while messages_history and messages_history[0].get("role") != "user":
-                messages_history.pop(0)
-                
+            # Since split_idx is guaranteed to be a user message with no toolResult blocks,
+            # we do not need to discard any leading non-user or toolResult messages.
             logger.info("History compressed successfully.")
             
         except Exception as e:
