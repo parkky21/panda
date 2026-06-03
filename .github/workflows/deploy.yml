@@ -3,8 +3,7 @@ name: Deploy to EC2
 on:
   push:
     tags:
-      - 'release-v0.0.1'  # Specifically triggers when you push the release-v0.0.1 tag
-      # If you want it to trigger on future releases (e.g. v0.0.2), you can change this to 'release-v*'
+      - 'release-v*' 
 
 jobs:
   deploy:
