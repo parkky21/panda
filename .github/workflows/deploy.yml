@@ -1,0 +1,39 @@
+name: Deploy to EC2
+
+on:
+  push:
+    tags:
+      - 'release-v0.0.1'  # Specifically triggers when you push the release-v0.0.1 tag
+      # If you want it to trigger on future releases (e.g. v0.0.2), you can change this to 'release-v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # Navigate to your project directory on EC2
+            cd /home/${{ secrets.EC2_USER }}/panda || exit 1
+            
+            # Fetch latest tags and checkout the triggered tag
+            git fetch --tags
+            git checkout tags/${{ github.ref_name }}
+            
+            # Install/update dependencies using uv
+            # (Assumes uv is installed on the EC2 instance)
+            uv sync --frozen
+            
+            # Restart your PM2 process or systemd service (if configured)
+            # Example: pm2 restart panda
+            # Or: sudo systemctl restart panda
+            echo "Deployment of ${{ github.ref_name }} completed successfully!"
