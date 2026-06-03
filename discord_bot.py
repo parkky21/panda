@@ -44,7 +44,7 @@ async def send_response(message, text: str):
     """Helper to send text chunks to message channel."""
     chunks = split_response(text)
     for chunk in chunks:
-        await message.reply(chunk)
+        await message.channel.send(chunk)
 
 last_active_channel = None
 
@@ -208,7 +208,7 @@ async def handle_conversation(message, user_text: str):
                 
             except Exception as e:
                 logger.error(f"Voice transcription failed: {e}")
-                await message.reply("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
+                await message.channel.send("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
                 return
             finally:
                 # Clean up input audio files
@@ -222,9 +222,9 @@ async def handle_conversation(message, user_text: str):
     # Now check for empty text
     if not user_text.strip():
         if message.attachments and not is_voice_input:
-            await message.reply("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
+            await message.channel.send("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
         else:
-            await message.reply("🐼 It looks like you sent an empty message! How can I help you? 🐼")
+            await message.channel.send("🐼 It looks like you sent an empty message! How can I help you? 🐼")
         return
 
     channel_id = message.channel.id
@@ -237,20 +237,12 @@ async def handle_conversation(message, user_text: str):
     async with message.channel.typing():
         loop = asyncio.get_running_loop()
         
-        # Define non-blocking callbacks for tool run indicators
+        # Define non-blocking callbacks for tool run indicators (no-op as per user request)
         def on_tool_call_start(tool_name, tool_args):
-            args_str = ", ".join(f"{k}={v}" for k, v in tool_args.items())
-            asyncio.run_coroutine_threadsafe(
-                message.channel.send(f"🔧 **Tool Start:** `{tool_name}({args_str})`"),
-                loop
-            )
+            pass
             
         def on_tool_call_end(tool_name, result):
-            preview = str(result)[:100] + "..." if len(str(result)) > 100 else str(result)
-            asyncio.run_coroutine_threadsafe(
-                message.channel.send(f"✓ **Tool End:** `{tool_name}` finished.\nResult: `{preview}`"),
-                loop
-            )
+            pass
             
         try:
             # Run orchestrator chat loop in a thread pool
@@ -274,7 +266,7 @@ async def handle_conversation(message, user_text: str):
                 
         except Exception as e:
             logger.error(f"Error handling message: {e}")
-            await message.reply(f"⚠️ An error occurred: {e}")
+            await message.channel.send(f"⚠️ An error occurred: {e}")
 
 @bot.event
 async def on_message(message):

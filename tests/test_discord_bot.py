@@ -35,11 +35,11 @@ def test_split_response():
 @pytest.mark.anyio
 async def test_send_response():
     mock_message = MagicMock()
-    mock_message.reply = AsyncMock()
+    mock_message.channel.send = AsyncMock()
     
     text = "Hello\nWorld"
     await discord_bot.send_response(mock_message, text)
-    mock_message.reply.assert_called_once_with(text)
+    mock_message.channel.send.assert_called_once_with(text)
 
 @pytest.mark.anyio
 async def test_cron_loop_async():
@@ -304,12 +304,12 @@ async def test_cron_loop_email_reply_unfiltered_auto_stop(mock_notify):
 @pytest.mark.anyio
 async def test_handle_conversation_empty():
     mock_message = MagicMock()
-    mock_message.reply = AsyncMock()
+    mock_message.channel.send = AsyncMock()
     mock_message.attachments = []
     
     await discord_bot.handle_conversation(mock_message, "")
     
-    mock_message.reply.assert_called_once_with("🐼 It looks like you sent an empty message! How can I help you? 🐼")
+    mock_message.channel.send.assert_called_once_with("🐼 It looks like you sent an empty message! How can I help you? 🐼")
 
 
 @pytest.mark.anyio
@@ -341,7 +341,6 @@ async def test_handle_conversation_voice(mock_to_thread):
 
     mock_message = MagicMock()
     mock_message.channel.id = 888
-    mock_message.reply = AsyncMock()
     mock_message.channel.send = AsyncMock()
     mock_message.channel.typing.return_value.__aenter__ = AsyncMock()
     mock_message.channel.typing.return_value.__aexit__ = AsyncMock()
@@ -356,7 +355,7 @@ async def test_handle_conversation_voice(mock_to_thread):
     
     # Check that it saves the file, transcribes it, and responds with text
     mock_attachment.save.assert_called_once()
-    mock_message.reply.assert_called_once_with("Hello user")
+    mock_message.channel.send.assert_called_once_with("Hello user")
     
     # Check that the transcript was appended to history
     assert len(discord_bot.chat_histories[888]) == 1
@@ -370,7 +369,6 @@ async def test_handle_conversation_voice_failed(mock_to_thread):
     
     mock_message = MagicMock()
     mock_message.channel.id = 888
-    mock_message.reply = AsyncMock()
     mock_message.channel.send = AsyncMock()
     mock_message.channel.typing.return_value.__aenter__ = AsyncMock()
     mock_message.channel.typing.return_value.__aexit__ = AsyncMock()
@@ -383,14 +381,13 @@ async def test_handle_conversation_voice_failed(mock_to_thread):
     
     await discord_bot.handle_conversation(mock_message, "")
     
-    mock_message.reply.assert_called_once_with("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
-
+    mock_message.channel.send.assert_called_once_with("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
 
 
 @pytest.mark.anyio
 async def test_handle_conversation_attachment():
     mock_message = MagicMock()
-    mock_message.reply = AsyncMock()
+    mock_message.channel.send = AsyncMock()
     
     mock_attachment = MagicMock()
     mock_attachment.content_type = "image/png"
@@ -399,5 +396,5 @@ async def test_handle_conversation_attachment():
     
     await discord_bot.handle_conversation(mock_message, "   ")
     
-    mock_message.reply.assert_called_once_with("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
+    mock_message.channel.send.assert_called_once_with("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
 
