@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy to EC2 via SSH
+      - name: Prepare Deployment Directory on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -21,14 +21,30 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # Navigate to your project directory on EC2
+            mkdir -p /home/${{ secrets.EC2_USER }}/panda
+
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: ".,!.git,!.github,!.venv,!memory,!.env"
+          target: "/home/${{ secrets.EC2_USER }}/panda"
+          tar_tmp_path: "/tmp"
+
+      - name: Build Docker Image on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
             cd /home/${{ secrets.EC2_USER }}/panda || exit 1
             
-            # Fetch latest tags and checkout the triggered tag
-            git fetch --tags
-            git checkout tags/${{ github.ref_name }}
-            
-            # Ensure the host memory directory exists (so we can mount it as a volume)
+            # Ensure memory folder exists
             mkdir -p memory
             
             # Build the Docker image
@@ -37,4 +53,5 @@ jobs:
             echo "Deployment of ${{ github.ref_name }} completed successfully!"
             echo "To start chatting with Panda on EC2, run:"
             echo "docker run -it --rm --name panda-chat -v /home/${{ secrets.EC2_USER }}/panda/memory:/app/memory --env-file .env panda-agent"
+
 
