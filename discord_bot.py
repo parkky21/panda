@@ -161,6 +161,25 @@ async def handle_conversation(message, user_text: str):
     """Processes message content with the orchestrator."""
     global last_active_channel
     last_active_channel = message.channel
+    # Check for empty text (which can happen with voice notes or attachments)
+    if not user_text.strip():
+        if message.attachments:
+            is_voice = False
+            for attachment in message.attachments:
+                content_type = attachment.content_type
+                if content_type and content_type.startswith("audio/"):
+                    is_voice = True
+                elif attachment.filename.lower().endswith(('.ogg', '.mp3', '.wav', '.m4a', '.mp4')):
+                    is_voice = True
+            
+            if is_voice:
+                await message.reply("🐼 I can see you sent a voice message, but I can't listen to audio yet! Please type your message. 🎙️")
+            else:
+                await message.reply("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
+        else:
+            await message.reply("🐼 It looks like you sent an empty message! How can I help you? 🐼")
+        return
+
     channel_id = message.channel.id
     if channel_id not in chat_histories:
         chat_histories[channel_id] = []
