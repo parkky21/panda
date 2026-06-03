@@ -18,5 +18,10 @@
     "file": "check_emails.py",
     "description": "Checks the IMAP server inbox for new unread email messages or replies, prints details, and marks them as read. Usage: check_emails",
     "type": "python"
+  },
+  "open_youtube_search": {
+    "file": "open_youtube_search.py",
+    "description": "Opens YouTube search for a given query in the default browser. Usage: open_youtube_search <search_query>",
+    "type": "python"
   }
 }
