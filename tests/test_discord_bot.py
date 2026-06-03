@@ -313,18 +313,78 @@ async def test_handle_conversation_empty():
 
 
 @pytest.mark.anyio
-async def test_handle_conversation_voice():
+@patch('asyncio.to_thread')
+async def test_handle_conversation_voice(mock_to_thread):
+    discord_bot.chat_histories.clear()
+    mock_orchestrator = MagicMock()
+    mock_orchestrator.chat.return_value = {
+        "content": [{"text": "Hello user"}]
+    }
+    discord_bot.orchestrator = mock_orchestrator
+    
+    call_count = 0
+    async def mock_to_thread_se(func, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # convert_audio
+            return None
+        elif call_count == 2:
+            # transcribe_audio
+            return "hello panda"
+        elif call_count == 3:
+            # orchestrator.chat
+            return {"content": [{"text": "Hello user"}]}
+        return None
+        
+    mock_to_thread.side_effect = mock_to_thread_se
+
     mock_message = MagicMock()
+    mock_message.channel.id = 888
     mock_message.reply = AsyncMock()
+    mock_message.channel.send = AsyncMock()
+    mock_message.channel.typing.return_value.__aenter__ = AsyncMock()
+    mock_message.channel.typing.return_value.__aexit__ = AsyncMock()
     
     mock_attachment = MagicMock()
     mock_attachment.content_type = "audio/ogg"
     mock_attachment.filename = "voice.ogg"
+    mock_attachment.save = AsyncMock()
     mock_message.attachments = [mock_attachment]
     
     await discord_bot.handle_conversation(mock_message, "")
     
-    mock_message.reply.assert_called_once_with("🐼 I can see you sent a voice message, but I can't listen to audio yet! Please type your message. 🎙️")
+    # Check that it saves the file, transcribes it, and responds with text
+    mock_attachment.save.assert_called_once()
+    mock_message.reply.assert_called_once_with("Hello user")
+    
+    # Check that the transcript was appended to history
+    assert len(discord_bot.chat_histories[888]) == 1
+    assert discord_bot.chat_histories[888][0]["content"][0]["text"] == "hello panda"
+
+
+@pytest.mark.anyio
+@patch('asyncio.to_thread')
+async def test_handle_conversation_voice_failed(mock_to_thread):
+    mock_to_thread.side_effect = Exception("Transcription API error")
+    
+    mock_message = MagicMock()
+    mock_message.channel.id = 888
+    mock_message.reply = AsyncMock()
+    mock_message.channel.send = AsyncMock()
+    mock_message.channel.typing.return_value.__aenter__ = AsyncMock()
+    mock_message.channel.typing.return_value.__aexit__ = AsyncMock()
+    
+    mock_attachment = MagicMock()
+    mock_attachment.content_type = "audio/ogg"
+    mock_attachment.filename = "voice.ogg"
+    mock_attachment.save = AsyncMock()
+    mock_message.attachments = [mock_attachment]
+    
+    await discord_bot.handle_conversation(mock_message, "")
+    
+    mock_message.reply.assert_called_once_with("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
+
 
 
 @pytest.mark.anyio

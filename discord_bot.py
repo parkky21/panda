@@ -3,6 +3,7 @@ import sys
 import logging
 import asyncio
 import re
+import subprocess
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
@@ -161,21 +162,67 @@ async def handle_conversation(message, user_text: str):
     """Processes message content with the orchestrator."""
     global last_active_channel
     last_active_channel = message.channel
-    # Check for empty text (which can happen with voice notes or attachments)
+    
+    # Check if this is a voice input
+    is_voice_input = False
+    audio_attachment = None
+    if message.attachments:
+        for attachment in message.attachments:
+            content_type = attachment.content_type
+            if content_type and content_type.startswith("audio/"):
+                is_voice_input = True
+                audio_attachment = attachment
+                break
+            elif attachment.filename.lower().endswith(('.ogg', '.mp3', '.wav', '.m4a', '.mp4')):
+                is_voice_input = True
+                audio_attachment = attachment
+                break
+
+    # If it is a voice input, let's transcribe it
+    if is_voice_input and audio_attachment:
+        async with message.channel.typing():
+            temp_voice_path = f"temp_{message.id}_{audio_attachment.filename}"
+            temp_wav_path = f"temp_{message.id}.wav"
+            try:
+                # Save attachment
+                await audio_attachment.save(temp_voice_path)
+                
+                # Convert to wav using ffmpeg in a thread pool
+                def convert_audio():
+                    subprocess.run(["ffmpeg", "-i", temp_voice_path, "-y", temp_wav_path], capture_output=True)
+                await asyncio.to_thread(convert_audio)
+                
+                # Transcribe using speechrecognition in a thread pool
+                def transcribe_audio():
+                    import speech_recognition as sr
+                    r = sr.Recognizer()
+                    with sr.AudioFile(temp_wav_path) as source:
+                        audio_data = r.record(source)
+                        return r.recognize_google(audio_data)
+                
+                transcription = await asyncio.to_thread(transcribe_audio)
+                logger.info(f"Voice note transcribed successfully: '{transcription}'")
+                
+                # Set user_text to the transcription
+                user_text = transcription
+                
+            except Exception as e:
+                logger.error(f"Voice transcription failed: {e}")
+                await message.reply("🐼 I heard your voice message, but I couldn't transcribe it. Please try speaking clearly or typing. 🎙️")
+                return
+            finally:
+                # Clean up input audio files
+                for path in [temp_voice_path, temp_wav_path]:
+                    if os.path.exists(path):
+                        try:
+                            os.remove(path)
+                        except Exception:
+                            pass
+
+    # Now check for empty text
     if not user_text.strip():
-        if message.attachments:
-            is_voice = False
-            for attachment in message.attachments:
-                content_type = attachment.content_type
-                if content_type and content_type.startswith("audio/"):
-                    is_voice = True
-                elif attachment.filename.lower().endswith(('.ogg', '.mp3', '.wav', '.m4a', '.mp4')):
-                    is_voice = True
-            
-            if is_voice:
-                await message.reply("🐼 I can see you sent a voice message, but I can't listen to audio yet! Please type your message. 🎙️")
-            else:
-                await message.reply("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
+        if message.attachments and not is_voice_input:
+            await message.reply("🐼 I received your attachment, but I can only understand text messages right now! Please type your message. 📄")
         else:
             await message.reply("🐼 It looks like you sent an empty message! How can I help you? 🐼")
         return
@@ -222,9 +269,9 @@ async def handle_conversation(message, user_text: str):
             text_response = re.sub(r"<think>.*?</think>", "", text_response, flags=re.DOTALL)
             text_response = re.sub(r"<think>.*", "", text_response, flags=re.DOTALL).strip()
             
-            # Reply to user
+            # Send text-only reply
             await send_response(message, text_response)
-            
+                
         except Exception as e:
             logger.error(f"Error handling message: {e}")
             await message.reply(f"⚠️ An error occurred: {e}")
